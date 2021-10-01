@@ -26,6 +26,16 @@ flags.DEFINE_string(
   'output directory for AIST frames'
 )
 
+def world_to_cam(point, rvec, tvec):
+  rmat = cv2.Rodrigues(rvec)
+  mat = np.array([
+    [rmat[0][0], rmat[0][1], rmat[0][2], tvec[0]],
+    [rmat[1][0], rmat[1][1], rmat[1][2], tvec[1]],
+    [rmat[2][0], rmat[2][1], rmat[2][2], tvec[2]]
+  ])
+
+  return np.dot(mat, np.array([point[0], point[1], point[2], 1.0]))
+
 def get_video_lists(anno_dir):
   all_txt_f = open(os.path.join(anno_dir, "splits/pose_train.txt"))
   lines = all_txt_f.readlines()
@@ -108,12 +118,10 @@ def main(_):
         }
       })
       
-      keypoints3d_camera, jac = cv2.projectPoints(
+      keypoints3d_camera, jac = world_to_cam(
         keypoints3d_world[i],
         camera.rvec,
-        camera.tvec,
-        np.eye(3, dtype=np.float64),
-        np.zeros(4, dtype=np.float64)
+        camera.tvec
       )
       keypoints3d_camera = np.squeeze(keypoints3d_camera, 1)
       print(keypoints3d_camera.shape)
