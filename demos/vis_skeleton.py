@@ -12,9 +12,9 @@ JOINTS = [
 
 def generate_arrows(a):
     # These are the joint connections pulled in by hand from joint definitions
-    connections = [[0, 1], [0, 2], [1, 3], [2, 4], [0, 5], [0, 6], [5, 7],\
-                   [6, 8], [7, 9], [8, 10], [5, 11], [6, 12], [11, 13], [12, 14], [13, 15], [14, 16],
-                   [15, 17], [16, 18]]
+    connections = [[0, 1], [0, 2], [1, 3], [2, 4], [11, 12], [0, 5], [0, 6], [5, 7],\
+                   [6, 8], [7, 9], [8, 10], [5, 11], [6, 12], [11, 13], [12, 14], [13, 15], [14, 16]]
+
 
     arrow_locs = []
     arrow_dirs = []
@@ -28,19 +28,16 @@ def display_3d_joints(joints3DList):
     arrow_locs, arrow_dirs = generate_arrows(joints3DList)
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.set_xlim([-1, 1])
-    ax.set_ylim([-1, 1])
-    ax.set_zlim([-1, 1])
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
     ax.set_zlabel("Z")
     ax.quiver(
     	arrow_locs[:, 0],
+		-arrow_locs[:, 2],
 		arrow_locs[:, 1],
-		arrow_locs[:, 2],
 		arrow_dirs[:, 0],
+		-arrow_dirs[:, 2],
 		arrow_dirs[:, 1],
-		arrow_dirs[:, 2],
 		arrow_length_ratio=.01
 	)
     return fig, ax

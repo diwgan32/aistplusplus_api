@@ -23,7 +23,7 @@ from smplx import SMPL
 import torch
 import cv2
 import vis_skeleton as skel_3d
-
+import numpy as np
 FLAGS = flags.FLAGS
 flags.DEFINE_string(
     'anno_dir',
@@ -45,9 +45,6 @@ flags.DEFINE_string(
     'save_dir',
     '/usr/local/google/home/ruilongli/data/public/aist_plusplus_final/tmp/',
     'output local dictionary that stores AIST++ visualization.')
-flags.DEFINE_enum(
-    'mode', '2D', ['2D', '3D', 'SMPL', 'SMPLMesh'],
-    'visualize 3D or 2D keypoints, or SMPL joints on image plane.')
 flags.DEFINE_enum(
     'mode', '2D', ['2D', '3D', 'SMPL', 'SMPLMesh'],
     'visualize 3D or 2D keypoints, or SMPL joints on image plane.')
@@ -137,7 +134,7 @@ def main(_):
         fig.canvas.draw()
         data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
         img = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-        cv2.imsave(img, os.path.join(FLAGS.save_dir, f'{FLAGS.video_name}_{i}.jpg'))
+        cv2.imwrite(os.path.join(FLAGS.save_dir, f'{FLAGS.video_name}_{i}.jpg'), img)
         
   plot_on_video(keypoints2d, video_path, save_path, fps=60)
 
