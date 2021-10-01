@@ -2,6 +2,7 @@ from absl import app
 from absl import flags
 from aist_plusplus.loader import AISTDataset
 
+import os
 import numpy as np
 import cv2
 import pickle
@@ -26,10 +27,20 @@ flags.DEFINE_string(
 )
 
 def get_video_lists(anno_dir):
-  all_txt_f = open(os.path.join(anno_dir, "splits/all.txt"))
+  all_txt_f = open(os.path.join(anno_dir, "splits/pose_train.txt"))
   lines = all_txt_f.readlines()
   all_txt_f.close()
-  return lines
+  final_list = []
+  for l in lines:
+    seq_name, view = AISTDataset.get_seq_name(l)
+    if (view == "cAll"):
+      for view in AISTDataset.VIEWS:
+        name_with_cam = l.replace("cAll", view)
+        final_list.append(name_with_cam.strip())
+    else:
+      final_list.append(l.strip())
+
+  return final_list
 
 def get_camera(camera_group, name):
   for camera in camera_group.cameras:
@@ -47,7 +58,7 @@ def get_bbox(uv, frame_shape):
       float(max(0, x)), float(max(0, y)), float(x_max - x), float(y_max - y)
   ]
 
-if __name__ == "__main__":
+def main(_):
   video_list = get_video_lists(FLAGS.anno_dir)
   aist_dataset = AISTDataset(FLAGS.anno_dir)
   total = 0
@@ -64,25 +75,18 @@ if __name__ == "__main__":
   for video_name in video_list:
     video_path = os.path.join(FLAGS.video_dir, f'{video_name}.mp4')
     seq_name, view = AISTDataset.get_seq_name(video_name)
+    print(video_name)
+    env_name = aist_dataset.mapping_seq2env[seq_name]
     view_idx = AISTDataset.VIEWS.index(view)
-
+    cgroup = AISTDataset.load_camera_group(aist_dataset.camera_dir, env_name)
+    camera = get_camera(cgroup, view)
     keypoints3d_world = AISTDataset.load_keypoint3d(
         aist_dataset.keypoint3d_dir, seq_name, use_optim=True)
     nframes, njoints, _ = keypoints3d_world.shape
     keypoints2d = cgroup.project(keypoints3d_world)
     keypoints2d = keypoints2d.reshape(9, nframes, njoints, 2)[view_idx]
-    env_name = aist_dataset.mapping_seq2env[seq_name]
-    cgroup = AISTDataset.load_camera_group(aist_dataset.camera_dir, env_name)
-    camera = get_camera(cgroup, view) # TODO implement
     K = camera.get_camera_matrix()
     # Convert world coords to camera coords
-    keypoints_3d_camera = cv2.projectPoints(
-      keypoints_3d,
-      camera.rvec,
-      camera.tvec,
-      np.eye(3),
-      np.zeros(3)
-    )
     vid_path = os.path.join(FLAGS.output_dir, video_name)
     os.makedirs(vid_path, exist_ok=True)
     cap = cv2.VideoCapture(video_path)
@@ -92,7 +96,7 @@ if __name__ == "__main__":
       if not ret:
         break
 
-      cv2.imwrite(frame, f"{vid_path}/{i:06d}.jpg")
+      cv2.imwrite(f"{vid_path}/{i:06d}.jpg", frame)
       output["images"].append({
         "id": total,
         "width": frame.shape[1],
@@ -103,13 +107,22 @@ if __name__ == "__main__":
             "princpt": [float(K[0][2]), float(K[1][2])]
         }
       })
-
+      
+      keypoints3d_camera, jac = cv2.projectPoints(
+        keypoints3d_world[i],
+        camera.rvec,
+        camera.tvec,
+        np.eye(3, dtype=np.float64),
+        np.zeros(4, dtype=np.float64)
+      )
+      keypoints3d_camera = np.squeeze(keypoints3d_camera, 1)
+      print(keypoints3d_camera.shape)
       output["annotations"].append({
         "id": total,
         "image_id": total,
         "category_id": 1,
         "is_crowd": 0,
-        "joint_cam": keypoints_3d_camera[i].tolist(),
+        "joint_cam": keypoints3d_camera.tolist(),
         "bbox": get_bbox(keypoints2d, frame.shape) # x, y, w, h
       })
 
@@ -123,3 +136,6 @@ if __name__ == "__main__":
   f = open("aist_training.json", "w")
   json.dump(output, f)
   f.close()
+
+if __name__ == "__main__":
+    app.run(main)
