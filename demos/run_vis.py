@@ -21,6 +21,8 @@ from aist_plusplus.loader import AISTDataset
 from aist_plusplus.visualizer import plot_on_video
 from smplx import SMPL
 import torch
+import cv2
+import vis_skeleton as skel_3d
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string(
@@ -46,6 +48,9 @@ flags.DEFINE_string(
 flags.DEFINE_enum(
     'mode', '2D', ['2D', '3D', 'SMPL', 'SMPLMesh'],
     'visualize 3D or 2D keypoints, or SMPL joints on image plane.')
+flags.DEFINE_enum(
+    'mode', '2D', ['2D', '3D', 'SMPL', 'SMPLMesh'],
+    'visualize 3D or 2D keypoints, or SMPL joints on image plane.')
 
 
 def main(_):
@@ -54,7 +59,10 @@ def main(_):
   video_path = os.path.join(FLAGS.video_dir, f'{FLAGS.video_name}.mp4')
   seq_name, view = AISTDataset.get_seq_name(FLAGS.video_name)
   view_idx = AISTDataset.VIEWS.index(view)
+  
 
+  fig = None
+  ax = None
   # Parsing keypoints.
   if FLAGS.mode == '2D':  # raw keypoints detection results.
     keypoints2d, _, _ = AISTDataset.load_keypoint2d(
@@ -112,7 +120,25 @@ def main(_):
 
   # Visualize.
   os.makedirs(FLAGS.save_dir, exist_ok=True)
+  
   save_path = os.path.join(FLAGS.save_dir, f'{FLAGS.video_name}.mp4')
+  save_path_3d = os.path.join(FLAGS.save_dir, f'{FLAGS.video_name}_3d.mp4')
+
+  writer_3d = cv2.VideoWriter(
+    filename=save_path_3d,
+    fps=30,
+    fourcc=cv2.VideoWriter_fourcc('m', 'p', '4', 'v'),
+    frameSize=(640, 480)
+  )
+
+  if FLAGS.mode == "3D":
+    for i in range(keypoints3d.shape[0]):
+        fig, ax = skel_3d.display_3d_joints(keypoints3d[i])
+        fig.canvas.draw()
+        data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+        img = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        cv2.imsave(img, os.path.join(FLAGS.save_dir, f'{FLAGS.video_name}_{i}.jpg'))
+        
   plot_on_video(keypoints2d, video_path, save_path, fps=60)
 
 
