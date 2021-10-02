@@ -108,3 +108,6 @@ data/
 .DS_Store
 
 visualization/
+
+*.swp
+*.json
