@@ -8,9 +8,11 @@ import cv2
 import pickle
 import random
 import json
+from multiprocessing import Pool
 
 LHIP_POS = 11
 RHIP_POS = 12
+NUM_CPUS = 4
 FLAGS = flags.FLAGS
 flags.DEFINE_string(
   'anno_dir',
@@ -27,6 +29,10 @@ flags.DEFINE_string(
   '/home/ubuntu/ProcessedDatasets/aist/',
   'output directory for AIST frames'
 )
+
+def partition (list_in, n):
+    random.shuffle(list_in)
+    return [list_in[i::n] for i in range(n)]
 
 def add_pelvis(points):
   new_points = np.zeros((points.shape[0] + 1, points.shape[1]))
@@ -77,8 +83,7 @@ def get_bbox(uv, frame_shape):
       float(max(0, x)), float(max(0, y)), float(x_max - x), float(y_max - y)
   ]
 
-def main(_):
-  video_list = get_video_lists(FLAGS.anno_dir)
+def process(video_list, i):
   aist_dataset = AISTDataset(FLAGS.anno_dir)
   total = 0
   output = {
@@ -145,14 +150,22 @@ def main(_):
       i += 1
       total += 1
       if (total % 100 == 0):
-        print(f"Total: {total}")
+        print(f"Total: {total}, Machine: {i}")
 
-    if (total > 3000):
-      break
 
-  f = open("aist_training.json", "w")
+  f = open(f"aist_training_{i}.json", "w")
   json.dump(output, f)
   f.close()
+
+def main(_):
+  video_list = get_video_lists(FLAGS.anno_dir)
+  partitioned_list = partition(video_list, NUM_CPUS)
+  processes = []
+
+  for i in range(NUM_CPUS):
+    processes.append(Process(target=process, args=(partitioned_list,i)))
+  for p in procs:
+    p.join()
 
 if __name__ == "__main__":
     app.run(main)
