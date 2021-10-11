@@ -8,11 +8,11 @@ import cv2
 import pickle
 import random
 import json
-from multiprocessing import Pool
+from multiprocessing import Process
 
 LHIP_POS = 11
 RHIP_POS = 12
-NUM_CPUS = 4
+NUM_CPUS = 32
 FLAGS = flags.FLAGS
 flags.DEFINE_string(
   'anno_dir',
@@ -26,7 +26,7 @@ flags.DEFINE_string(
 )
 flags.DEFINE_string(
   'output_dir',
-  '/home/ubuntu/ProcessedDatasets/aist/',
+  '/home/ubuntu/ProcessedDatasets/aist_processed/',
   'output directory for AIST frames'
 )
 
@@ -83,7 +83,7 @@ def get_bbox(uv, frame_shape):
       float(max(0, x)), float(max(0, y)), float(x_max - x), float(y_max - y)
   ]
 
-def process(video_list, i):
+def process(video_list, machine_num):
   aist_dataset = AISTDataset(FLAGS.anno_dir)
   total = 0
   output = {
@@ -95,7 +95,7 @@ def process(video_list, i):
       'name': 'person'
     }]
   }
-
+  vid_list_num = 0
   for video_name in video_list:
     video_path = os.path.join(FLAGS.video_dir, f'{video_name}.mp4')
     seq_name, view = AISTDataset.get_seq_name(video_name)
@@ -118,6 +118,10 @@ def process(video_list, i):
       ret, frame = cap.read()
       if not ret:
         break
+      
+      if (random.random() > .5):
+        i += 1
+        continue
 
       cv2.imwrite(f"{vid_path}/{i:06d}.jpg", frame)
       output["images"].append({
@@ -149,11 +153,9 @@ def process(video_list, i):
       })
       i += 1
       total += 1
-      if (total % 100 == 0):
-        print(f"Total: {total}, Machine: {i}")
-
-
-  f = open(f"aist_training_{i}.json", "w")
+    vid_list_num += 1
+    print(f"Completed {vid_list_num} of {len(video_list)} on machine {machine_num}")
+  f = open(f"aist_training_{machine_num}.json", "w")
   json.dump(output, f)
   f.close()
 
@@ -161,10 +163,11 @@ def main(_):
   video_list = get_video_lists(FLAGS.anno_dir)
   partitioned_list = partition(video_list, NUM_CPUS)
   processes = []
-
   for i in range(NUM_CPUS):
-    processes.append(Process(target=process, args=(partitioned_list,i)))
-  for p in procs:
+    processes.append(Process(target=process, args=(partitioned_list[i],i)))
+  for p in processes:
+    p.start()
+  for p in processes:
     p.join()
 
 if __name__ == "__main__":
