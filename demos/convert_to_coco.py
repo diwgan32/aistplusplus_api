@@ -83,9 +83,11 @@ def get_bbox(uv, frame_shape):
       float(max(0, x)), float(max(0, y)), float(x_max - x), float(y_max - y)
   ]
 
-def process(video_list, machine_num):
+def process(video_list, max_num, machine_num):
   aist_dataset = AISTDataset(FLAGS.anno_dir)
-  total = 0
+
+  # This is to avoid any overlap in the ids
+  total = max_num * machine_num
   output = {
     "images": [],
     "annotations": [],
@@ -159,12 +161,25 @@ def process(video_list, machine_num):
   json.dump(output, f)
   f.close()
 
+def get_max_frames(video_list):
+  max_num = 0
+  for video_name in video_list:
+    video_path = os.path.join(FLAGS.video_dir, f'{video_name}.mp4')
+    cap = cv2.VideoCapture(video_path)
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if (total >= max_num):
+      max_num = total
+
+  return total
+
 def main(_):
   video_list = get_video_lists(FLAGS.anno_dir)
+  max_frames = get_max_frames(video_list)
+  print(f"Max frames: {max_frames}")
   partitioned_list = partition(video_list, NUM_CPUS)
   processes = []
   for i in range(NUM_CPUS):
-    processes.append(Process(target=process, args=(partitioned_list[i],i)))
+    processes.append(Process(target=process, args=(partitioned_list[i], max_frames, i)))
   for p in processes:
     p.start()
   for p in processes:
