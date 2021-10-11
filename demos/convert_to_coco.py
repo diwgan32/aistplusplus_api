@@ -30,6 +30,23 @@ flags.DEFINE_string(
   'output directory for AIST frames'
 )
 
+def vis_keypoints(frame, joints2d):
+    for i in range(joints2d.shape[0]):
+        if (np.isnan(joints2d[i][0]) or np.isnan(joints2d[i][1])):
+            continue
+        frame = cv2.circle(frame, (int(joints2d[i][0]), int(joints2d[i][1])), 3, (0, 0, 0), 1)
+
+    return frame
+
+def reproject_to_3d(im_coords, K, z):
+    im_coords = np.stack([im_coords[:,0], im_coords[:,1]],axis=1)
+    im_coords = np.hstack((im_coords, np.ones((im_coords.shape[0],1))))
+    projected = np.dot(np.linalg.inv(K), im_coords.T).T
+    projected[:, 0] = np.multiply(projected[:, 0], z)
+    projected[:, 1] = np.multiply(projected[:, 1], z)
+    projected[:, 2] = np.multiply(projected[:, 2], z)
+    return projected
+
 def partition (list_in, n):
     random.shuffle(list_in)
     return [list_in[i::n] for i in range(n)]
@@ -50,6 +67,23 @@ def world_to_cam(points, rvec, tvec):
   ])
   points_expanded = np.vstack((points.T, np.ones(points.shape[0])))
   return np.dot(mat, points_expanded).T
+
+def project_3D_points(cam_mat, pts3D):
+    '''
+    Function for projecting 3d points to 2d
+    :param camMat: camera matrix
+    :param pts3D: 3D points
+    :return:
+    '''
+    assert pts3D.shape[-1] == 3
+    assert len(pts3D.shape) == 2
+
+    proj_pts = pts3D.dot(cam_mat.T)
+    proj_pts = np.stack([proj_pts[:,0]/proj_pts[:,2], proj_pts[:,1]/proj_pts[:,2]],axis=1)
+
+    assert len(proj_pts.shape) == 2
+
+    return proj_pts
 
 def get_video_lists(anno_dir):
   all_txt_f = open(os.path.join(anno_dir, "splits/pose_train.txt"))
@@ -118,6 +152,7 @@ def process(video_list, max_num, machine_num):
     i = 0
     while True:
       ret, frame = cap.read()
+      frame = cv2.resize(frame, (640, 360))
       if not ret:
         break
       
@@ -145,6 +180,14 @@ def process(video_list, max_num, machine_num):
 
       keypoints3d_camera_pelvis = add_pelvis(keypoints3d_camera)
       keypoints2d_pelvis = add_pelvis(keypoints2d[i])
+
+      keypoints2d_pelvis *= (1.0/3.0) 
+      keypoints_3d_pelvis_reproj = \
+        reproject_to_3d(keypoints2d_pelvis, K, keypoints3d_camera_pelvis[:, 2])
+      
+      test_img_coords = project_3D_points(keypoints_3d_pelvis_reproj, K)
+      frame = vis_keypoints(frame, test_img_coords)
+      cv2.imwrite(f"{random.randint(1, 100000)}_{machine_num}.jpg", frame)
       output["annotations"].append({
         "id": total,
         "image_id": total,
