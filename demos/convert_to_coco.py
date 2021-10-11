@@ -16,12 +16,12 @@ NUM_CPUS = 32
 FLAGS = flags.FLAGS
 flags.DEFINE_string(
   'anno_dir',
-  '/usr/local/google/home/ruilongli/data/public/aist_plusplus_final/',
+  '/home/ubuntu/RawDatasets/aist/annotations', 
   'input local dictionary for AIST++ annotations.'
 )
 flags.DEFINE_string(
   'video_dir',
-  '/usr/local/google/home/ruilongli/data/AIST_plusplus/refined_10M_all_video/',
+  '/home/ubuntu/RawDatasets/aist/videos',
   'input local dictionary for AIST Dance Videos.'
 )
 flags.DEFINE_string(
@@ -170,7 +170,7 @@ def get_max_frames(video_list):
     if (total >= max_num):
       max_num = total
 
-  return total
+  return max_num
 
 def main(_):
   video_list = get_video_lists(FLAGS.anno_dir)
